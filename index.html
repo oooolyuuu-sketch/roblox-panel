@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Advanced Cyber-Panel</title>
+    <!-- Подключаем официальную библиотеку для работы с базой из браузера -->
+    <script src="https://jsdelivr.net"></script>
+    <style>
+        :root {
+            --bg: #0a0b0d; --panel: #14171c; --text: #c5c6c7; 
+            --accent: #00ffcc; --danger: #ff4a4a; --warning: #ffaa00;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 30px; margin:0; }
+        .container { max-width: 1000px; margin: 0 auto; background: var(--panel); padding: 30px; border-radius: 12px; border: 1px solid #232931; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        .header h1 { color: #fff; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }
+        .tabs { display: flex; gap: 10px; margin-top: 25px; }
+        .tab-btn { background: #1c2129; border: 1px solid #2b3440; color: var(--text); padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .tab-btn.active { background: var(--accent); color: #000; border-color: var(--accent); box-shadow: 0 0 15px rgba(0,255,204,0.3); }
+        .tab-content { display: none; margin-top: 20px; }
+        .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #111418; border-radius: 8px; overflow: hidden; border: 1px solid #232931; }
+        th { background: #181d24; text-align: left; padding: 16px; color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 16px; border-bottom: 1px solid #1c2129; font-size: 15px; }
+        .user-name { font-weight: bold; color: #fff; }
+        .actions-cell { display: flex; gap: 8px; }
+        .btn { border: none; padding: 8px 14px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.2s; }
+        .btn-freeze { background: #2471a3; color: #fff; }
+        .btn-slow { background: var(--warning); color: #000; }
+        .btn-spin { background: #7d3c98; color: #fff; }
+        .btn-delete { background: var(--danger); color: #fff; }
+        .btn:hover { filter: brightness(1.2); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Anti-Cheat Advanced Dashboard</h1>
+        </div>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('active-tab')">Активные читеры</button>
+            <button class="tab-btn" onclick="switchTab('history-tab')">История действий</button>
+        </div>
+        
+        <div id="active-tab" class="tab-content active">
+            <table>
+                <thead>
+                    <tr><th>Обнаружен</th><th>Никнейм</th><th>Roblox ID</th><th>Управление игроком</th></tr>
+                </thead>
+                <tbody id="cheaters-list"></tbody>
+            </table>
+        </div>
+
+        <div id="history-tab" class="tab-content">
+            <table>
+                <thead>
+                    <tr><th>Время</th><th>Никнейм</th><th>Выполненное действие</th></tr>
+                </thead>
+                <tbody id="history-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // ИНИЦИАЛИЗАЦИЯ SUPABASE С ВАШИМИ КЛЮЧАМИ
+        const SUPABASE_URL = "https://supabase.co";
+        const SUPABASE_KEY = "sb_publishable_AK7u7wujyiYNyuSpDiQfvA_-1gqRqel";
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+            loadData();
+        }
+
+        async function loadData() {
+            // Получаем список активных читеров из базы данных
+            const { data: cheaters } = await supabase.from('cheaters').select('*').order('discovered_time', { ascending: false });
+            const tbody = document.getElementById('cheaters-list');
+            tbody.innerHTML = cheaters && cheaters.length ? cheaters.map(c => `
+                <tr>
+                    <td>${c.discovered_time}</td>
+                    <td class="user-name">${c.username}</td>
+                    <td>${c.user_id}</td>
+                    <td class="actions-cell">
+                        <button class="btn btn-freeze" onclick="sendAction('${c.username}', 'freeze')">Заморозить</button>
+                        <button class="btn btn-slow" onclick="sendAction('${c.username}', 'slow')">Замедлить</button>
+                        <button class="btn btn-spin" onclick="sendAction('${c.username}', 'spin')">Крутить</button>
+                        <button class="btn btn-delete" onclick="sendAction('${c.username}', 'delete')">Удалить</button>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="4" style="text-align:center; color:#555; padding:20px;">Активных запусков не обнаружено</td></tr>';
+
+            // Получаем историю выполненных над игроками действий
+            const { data: history } = await supabase.from('action_history').select('*').order('id', { ascending: false });
+            const historyBody = document.getElementById('history-list');
+            historyBody.innerHTML = history && history.length ? history.map(h => `
+                <tr>
+                    <td>${h.time}</td>
+                    <td style="color: var(--accent); font-weight:bold;">${h.username}</td>
+                    <td style="color: #fff;">${h.detail}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="3" style="text-align:center; color:#555; padding:20px;">История пуста</td></tr>';
+        }
+
+        async function sendAction(username, action) {
+            const time = new Date().toLocaleTimeString('ru-RU');
+            if (action === 'delete') {
+                // Удаляем запись игрока из панели управления
+                await supabase.from('cheaters').delete().eq('username', username);
+                await supabase.from('action_history').insert([{ username, detail: 'Удален из панели', time }]);
+            } else {
+                // Передаем команду-эффект для выполнения в Roblox скрипте
+                await supabase.from('cheaters').update({ current_command: action }).eq('username', username);
+                let ruAction = action === 'freeze' ? 'Заморозка' : action === 'slow' ? 'Замедление' : 'Вращение';
+                await supabase.from('action_history').insert([{ username, detail: `Эффект: ${ruAction}`, time }]);
+            }
+            loadData();
+        }
+
+        loadData();
+        // Автоматически обновляем данные на экране каждые 3 секунды
+        setInterval(() => {
+            if(document.getElementById('active-tab').classList.contains('active')) loadData();
+        }, 3000);
+    </script>
+</body>
+</html>
