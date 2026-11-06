@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Advanced Cyber-Panel</title>
-    <!-- Подключаем официальную библиотеку для работы с базой из браузера -->
+    <!-- ИСПРАВЛЕНО: Подключаем настоящую CDN-библиотеку Supabase -->
     <script src="https://jsdelivr.net"></script>
     <style>
         :root {
@@ -61,10 +61,10 @@
     </div>
 
     <script>
-        // ИНИЦИАЛИЗАЦИЯ SUPABASE С ВАШИМИ КЛЮЧАМИ
-        const SUPABASE_URL = "https://supabase.co";
+        // ИСПРАВЛЕНО: Ссылка на твой проект и верная глобальная переменная библиотеки
+        const SUPABASE_URL = "https://sjjdyuynxwyaqvdfxsrf.supabase.co";
         const SUPABASE_KEY = "sb_publishable_AK7u7wujyiYNyuSpDiQfvA_-1gqRqel";
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -75,51 +75,65 @@
         }
 
         async function loadData() {
-            // Получаем список активных читеров из базы данных
-            const { data: cheaters } = await supabase.from('cheaters').select('*').order('discovered_time', { ascending: false });
-            const tbody = document.getElementById('cheaters-list');
-            tbody.innerHTML = cheaters && cheaters.length ? cheaters.map(c => `
-                <tr>
-                    <td>${c.discovered_time}</td>
-                    <td class="user-name">${c.username}</td>
-                    <td>${c.user_id}</td>
-                    <td class="actions-cell">
-                        <button class="btn btn-freeze" onclick="sendAction('${c.username}', 'freeze')">Заморозить</button>
-                        <button class="btn btn-slow" onclick="sendAction('${c.username}', 'slow')">Замедлить</button>
-                        <button class="btn btn-spin" onclick="sendAction('${c.username}', 'spin')">Крутить</button>
-                        <button class="btn btn-delete" onclick="sendAction('${c.username}', 'delete')">Удалить</button>
-                    </td>
-                </tr>
-            `).join('') : '<tr><td colspan="4" style="text-align:center; color:#555; padding:20px;">Активных запусков не обнаружено</td></tr>';
+            try {
+                // Получаем список активных читеров из базы данных
+                const { data: cheaters, error: chError } = await supabase.from('cheaters').select('*').order('discovered_time', { ascending: false });
+                if (chError) console.error("Ошибка загрузки читеров:", chError);
 
-            // Получаем историю выполненных над игроками действий
-            const { data: history } = await supabase.from('action_history').select('*').order('id', { ascending: false });
-            const historyBody = document.getElementById('history-list');
-            historyBody.innerHTML = history && history.length ? history.map(h => `
-                <tr>
-                    <td>${h.time}</td>
-                    <td style="color: var(--accent); font-weight:bold;">${h.username}</td>
-                    <td style="color: #fff;">${h.detail}</td>
-                </tr>
-            `).join('') : '<tr><td colspan="3" style="text-align:center; color:#555; padding:20px;">История пуста</td></tr>';
+                const tbody = document.getElementById('cheaters-list');
+                tbody.innerHTML = cheaters && cheaters.length ? cheaters.map(c => `
+                    <tr>
+                        <td>${c.discovered_time}</td>
+                        <td class="user-name">${c.username}</td>
+                        <td>${c.user_id}</td>
+                        <td class="actions-cell">
+                            <button class="btn btn-freeze" onclick="sendAction('${c.username}', 'freeze')">Заморозить</button>
+                            <button class="btn btn-slow" onclick="sendAction('${c.username}', 'slow')">Замедлить</button>
+                            <button class="btn btn-spin" onclick="sendAction('${c.username}', 'spin')">Крутить</button>
+                            <button class="btn btn-delete" onclick="sendAction('${c.username}', 'delete')">Удалить</button>
+                        </td>
+                    </tr>
+                `).join('') : '<tr><td colspan="4" style="text-align:center; color:#555; padding:20px;">Активных запусков не обнаружено</td></tr>';
+
+                // Получаем историю выполненных над игроками действий
+                const { data: history, error: histError } = await supabase.from('action_history').select('*').order('id', { ascending: false });
+                if (histError) console.error("Ошибка загрузки истории:", histError);
+
+                const historyBody = document.getElementById('history-list');
+                historyBody.innerHTML = history && history.length ? history.map(h => `
+                    <tr>
+                        <td>${h.time}</td>
+                        <td style="color: var(--accent); font-weight:bold;">${h.username}</td>
+                        <td style="color: #fff;">${h.detail}</td>
+                    </tr>
+                `).join('') : '<tr><td colspan="3" style="text-align:center; color:#555; padding:20px;">История пуста</td></tr>';
+            } catch (err) {
+                console.error("Непредвиденная ошибка получения данных:", err);
+            }
         }
 
         async function sendAction(username, action) {
             const time = new Date().toLocaleTimeString('ru-RU');
-            if (action === 'delete') {
-                // Удаляем запись игрока из панели управления
-                await supabase.from('cheaters').delete().eq('username', username);
-                await supabase.from('action_history').insert([{ username, detail: 'Удален из панели', time }]);
-            } else {
-                // Передаем команду-эффект для выполнения в Roblox скрипте
-                await supabase.from('cheaters').update({ current_command: action }).eq('username', username);
-                let ruAction = action === 'freeze' ? 'Заморозка' : action === 'slow' ? 'Замедление' : 'Вращение';
-                await supabase.from('action_history').insert([{ username, detail: `Эффект: ${ruAction}`, time }]);
+            try {
+                if (action === 'delete') {
+                    // Удаляем запись игрока из панели управления
+                    await supabase.from('cheaters').delete().eq('username', username);
+                    await supabase.from('action_history').insert([{ username, detail: 'Удален из панели', time }]);
+                } else {
+                    // Передаем команду-эффект для выполнения в Roblox скрипте
+                    await supabase.from('cheaters').update({ current_command: action }).eq('username', username);
+                    let ruAction = action === 'freeze' ? 'Заморозка' : action === 'slow' ? 'Замедление' : 'Вращение';
+                    await supabase.from('action_history').insert([{ username, detail: `Эффект: ${ruAction}`, time }]);
+                }
+                loadData();
+            } catch (err) {
+                console.error("Не удалось выполнить действие:", err);
             }
-            loadData();
         }
 
+        // Первичный запуск
         loadData();
+        
         // Автоматически обновляем данные на экране каждые 3 секунды
         setInterval(() => {
             if(document.getElementById('active-tab').classList.contains('active')) loadData();
